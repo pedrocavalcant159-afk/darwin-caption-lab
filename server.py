@@ -66,7 +66,26 @@ def read_bundled_state():
 
 
 def postgres_url():
-    return os.getenv("POSTGRES_URL", "").strip()
+    return (
+        os.getenv("POSTGRES_URL", "").strip()
+        or os.getenv("POSTGRES_PRISMA_URL", "").strip()
+        or os.getenv("POSTGRES_URL_NON_POOLING", "").strip()
+    )
+
+
+def database_error_message(error):
+    message = str(error or "").lower()
+    if "password authentication failed" in message or "authentication failed" in message:
+        return "O Supabase recusou a senha. Confira a senha dentro de POSTGRES_URL."
+    if "network is unreachable" in message or "no route to host" in message or "could not connect" in message:
+        return "A conexão direta do Supabase não está acessível. Use a URI de Transaction pooler em POSTGRES_URL."
+    if "timeout" in message or "timed out" in message:
+        return "O Supabase demorou para responder. Confirme a URI de Transaction pooler e faça um novo deploy."
+    if "could not translate host name" in message or "name or service not known" in message:
+        return "O endereço em POSTGRES_URL é inválido. Copie novamente a URI de Transaction pooler do Supabase."
+    if "invalid" in message and ("dsn" in message or "uri" in message or "connection" in message):
+        return "POSTGRES_URL não contém uma URI válida. Ela deve começar com postgresql://."
+    return "Não foi possível conectar ao Supabase. Confira POSTGRES_URL e use a URI de Transaction pooler."
 
 
 def database_connection():
@@ -731,7 +750,11 @@ class AppHandler(SimpleHTTPRequestHandler):
                 ,"storage": "Supabase" if postgres_url() else "arquivo local"
             })
         if self.path == "/api/state":
-            return self.send_json(200, read_state())
+            try:
+                return self.send_json(200, read_state())
+            except Exception as error:
+                print(f"Erro ao ler estado: {error}")
+                return self.send_json(500, {"error": database_error_message(error) if postgres_url() else "Não foi possível carregar a base de voz."})
         if self.path.startswith("/api/"):
             return self.send_json(404, {"error": "Rota não encontrada."})
         if self.path not in ("/", "/index.html") and not (PUBLIC_DIR / self.path.lstrip("/")).exists():
