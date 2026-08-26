@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#173f35">
+  <title>Darwin Caption Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span>D</span><i></i></div>
+        <div><strong>Darwin</strong><small>CAPTION LAB</small></div>
+      </div>
+
+      <nav class="main-nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-page="create">
+          <span class="nav-icon">✦</span><span>Criar legenda</span>
+        </button>
+        <button class="nav-item" data-page="voice">
+          <span class="nav-icon">◫</span><span>Base de voz</span><b id="corpusBadge">0</b>
+        </button>
+        <button class="nav-item" data-page="learning">
+          <span class="nav-icon">↗</span><span>Aprendizados</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="ai-status" id="aiStatus">
+          <span class="status-dot"></span>
+          <div><strong>Verificando IA</strong><small>Aguarde um instante</small></div>
+        </div>
+        <button class="nav-item" id="helpButton"><span class="nav-icon">?</span><span>Como funciona</span></button>
+        <div class="profile">
+          <div class="avatar">UP</div>
+          <div><strong>Equipe Upli</strong><small>Marketing</small></div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Abrir menu">☰</button>
+        <div class="breadcrumb"><span>Darwin Social</span><i>/</i><strong id="breadcrumb">Criar legenda</strong></div>
+        <div class="top-actions">
+          <div class="unit-mini"><span class="pulse"></span><span id="topUnit">Colatina</span></div>
+          <button class="icon-button" id="themeButton" aria-label="Alternar tema">☼</button>
+        </div>
+      </header>
+
+      <section class="page active" id="page-create">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">ESTÚDIO DE CONTEÚDO</span>
+            <h1>O que vamos contar hoje?</h1>
+            <p>Transforme uma imagem ou ideia em legendas com a voz da Darwin.</p>
+          </div>
+          <div class="quick-stat">
+            <span>✦</span><div><strong id="generationCount">0</strong><small>legendas geradas</small></div>
+          </div>
+        </div>
+
+        <div class="studio-grid">
+          <form class="composer-card" id="captionForm">
+            <div class="form-section section-unit">
+              <div class="section-title"><span class="step">1</span><div><strong>Escolha a unidade</strong><small>A voz se adapta a cada perfil</small></div></div>
+              <div class="unit-switch" role="radiogroup" aria-label="Unidade">
+                <label><input type="radio" name="unit" value="Colatina" checked><span><i class="unit-symbol">C</i><b>Colatina</b><small id="colatinaCount">0 referências</small></span></label>
+                <label><input type="radio" name="unit" value="Linhares"><span><i class="unit-symbol">L</i><b>Linhares</b><small id="linharesCount">0 referências</small></span></label>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="section-title"><span class="step">2</span><div><strong>Mostre ou conte a ideia</strong><small>A imagem é opcional quando o briefing é completo</small></div></div>
+              <label class="drop-zone" id="dropZone">
+                <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp">
+                <div class="upload-empty" id="uploadEmpty">
+                  <div class="upload-icon">↥</div>
+                  <strong>Arraste uma imagem ou clique para enviar</strong>
+                  <small>JPG, PNG ou WEBP • até 8 MB</small>
+                </div>
+                <div class="image-preview hidden" id="imagePreview">
+                  <img id="previewImg" alt="Imagem selecionada">
+                  <div><strong id="fileName"></strong><small id="fileSize"></small></div>
+                  <button type="button" id="removeImage" aria-label="Remover imagem">×</button>
+                </div>
+              </label>
+
+              <label class="field-label" for="brief">Briefing ou ideia do post</label>
+              <div class="textarea-wrap">
+                <textarea id="brief" rows="6" maxlength="2400" placeholder="Ex.: Post sobre a feira de ciências. Os alunos apresentaram projetos de sustentabilidade para as famílias. Valorizar protagonismo, criatividade e participação da comunidade..."></textarea>
+                <span class="char-count"><b id="briefCount">0</b>/2400</span>
+              </div>
+              <button type="button" class="brief-helper" id="briefHelper">✦ Melhorar meu briefing</button>
+            </div>
+
+            <div class="form-section compact-section">
+              <div class="section-title"><span class="step">3</span><div><strong>Ajuste a direção</strong><small>Defina o formato da entrega</small></div></div>
+              <div class="settings-grid">
+                <label>Tipo de conteúdo<select id="contentType"><option>Post de feed</option><option>Carrossel</option><option>Reels</option><option>Story</option><option>Comunicado</option></select></label>
+                <label>Objetivo<select id="goal"><option>Engajamento</option><option>Informação</option><option>Comunidade</option><option>Matrículas</option></select></label>
+                <label>Tamanho<select id="length"><option>Curto</option><option selected>Médio</option><option>Longo</option></select></label>
+                <label>Uso de emojis<select id="emojiLevel"><option>Sem emojis</option><option selected>Equilibrado</option><option>Mais emojis</option></select></label>
+              </div>
+              <label class="field-label" for="cta">Chamada para ação</label>
+              <select id="cta" class="full-select"><option>Automático</option><option>Saiba mais pelo link da bio.</option><option>Conte para a gente nos comentários!</option><option>Compartilhe com alguém especial.</option><option>Fale com a nossa equipe e conheça a Darwin.</option></select>
+            </div>
+
+            <div class="submit-area">
+              <div class="submit-copy"><span>3</span><small>opções diferentes</small></div>
+              <button class="generate-button" type="submit" id="generateButton"><span>✦</span><b>Gerar legendas</b><i>→</i></button>
+            </div>
+          </form>
+
+          <aside class="insights-column">
+            <div class="insight-card voice-card">
+              <div class="card-kicker"><span>◉</span> DNA DA VOZ</div>
+              <h3 id="voiceUnit">Darwin Colatina</h3>
+              <div class="voice-orbit"><div><strong id="voiceScore">42%</strong><small>treinada</small></div></div>
+              <p id="voiceMessage">Adicione legendas anteriores para o sistema aprender o tom real do perfil.</p>
+              <div class="voice-traits"><span>Acolhedora</span><span>Educacional</span><span>Confiante</span></div>
+              <button class="text-button" data-go="voice">Fortalecer base de voz <b>→</b></button>
+            </div>
+
+            <div class="insight-card tip-card">
+              <div class="bulb">✦</div>
+              <div><strong>Dica para um resultado melhor</strong><p>Inclua nomes, contexto, data e o que não pode faltar. A IA nunca deve adivinhar informações.</p></div>
+            </div>
+
+            <div class="insight-card memory-card">
+              <div class="memory-top"><div class="mini-icon">♡</div><div><strong>Memória ativa</strong><small id="memoryCount">Nenhum feedback ainda</small></div></div>
+              <div class="memory-bar"><i id="memoryBar"></i></div>
+              <p>Cada like e dislike deixa as próximas legendas mais alinhadas.</p>
+            </div>
+          </aside>
+        </div>
+
+        <section class="results-section hidden" id="resultsSection">
+          <div class="results-heading">
+            <div><span class="eyebrow">PRONTAS PARA REVISAR</span><h2>Escolha a que combina mais</h2></div>
+            <span class="mode-pill" id="modePill">Modo demonstração</span>
+          </div>
+          <div class="results-grid" id="resultsGrid"></div>
+        </section>
+      </section>
+
+      <section class="page" id="page-voice">
+        <div class="page-heading">
+          <div><span class="eyebrow">BIBLIOTECA EDITORIAL</span><h1>Base de voz</h1><p>Adicione o histórico dos perfis para ensinar o padrão real de cada unidade.</p></div>
+          <div class="heading-actions"><button class="secondary-button" id="openImport">Importar arquivo</button><button class="primary-small" id="openInstagram">◎ Ler Instagram</button></div>
+        </div>
+        <div class="voice-overview">
+          <div class="metric-card"><span>◫</span><div><strong id="totalCorpus">0</strong><small>legendas na base</small></div></div>
+          <div class="metric-card"><span>C</span><div><strong id="voiceColatina">0</strong><small>Colatina</small></div></div>
+          <div class="metric-card"><span>L</span><div><strong id="voiceLinhares">0</strong><small>Linhares</small></div></div>
+          <div class="metric-card"><span>⌁</span><div><strong id="avgLength">0</strong><small>caracteres em média</small></div></div>
+        </div>
+        <div class="library-card">
+          <div class="library-toolbar">
+            <div class="search-box">⌕<input id="corpusSearch" placeholder="Buscar na base..."></div>
+            <div class="filter-tabs"><button class="active" data-filter="Todas">Todas</button><button data-filter="Colatina">Colatina</button><button data-filter="Linhares">Linhares</button></div>
+          </div>
+          <div class="corpus-list" id="corpusList"></div>
+          <div class="empty-state" id="corpusEmpty"><div>◫</div><h3>Sua base de voz está vazia</h3><p>Importe legendas em CSV/TXT ou adicione uma manualmente.</p><button class="primary-small" data-open-import>Começar agora</button></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-learning">
+        <div class="page-heading">
+          <div><span class="eyebrow">EVOLUÇÃO CONTÍNUA</span><h1>Aprendizados</h1><p>Veja como as avaliações estão moldando as próximas legendas.</p></div>
+        </div>
+        <div class="learning-grid">
+          <div class="learning-hero">
+            <span class="eyebrow light">SINAL DE PREFERÊNCIA</span><h2 id="approvalRate">—</h2><p>taxa de aprovação das opções avaliadas</p><div class="hero-progress"><i id="approvalBar"></i></div>
+          </div>
+          <div class="metric-card tall"><span class="green">♥</span><div><strong id="likesCount">0</strong><small>legendas curtidas</small></div></div>
+          <div class="metric-card tall"><span class="red">×</span><div><strong id="dislikesCount">0</strong><small>legendas rejeitadas</small></div></div>
+        </div>
+        <div class="learning-panels">
+          <div class="library-card"><div class="panel-heading"><div><span class="eyebrow">FEEDBACK RECENTE</span><h3>O que a equipe avaliou</h3></div></div><div id="feedbackList" class="feedback-list"></div></div>
+          <div class="library-card preference-card"><div class="panel-heading"><div><span class="eyebrow">PERFIL APRENDIDO</span><h3>Sinais identificados</h3></div></div><div id="signalsList" class="signals-list"></div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="importModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+      <button class="modal-close" id="closeImport">×</button>
+      <span class="eyebrow">TREINAR A VOZ</span><h2 id="importTitle">Adicionar legendas</h2>
+      <p>Cole uma legenda por bloco, separando-as por uma linha vazia, ou envie um arquivo TXT/CSV.</p>
+      <div class="modal-unit"><button class="active" data-import-unit="Colatina">Colatina</button><button data-import-unit="Linhares">Linhares</button></div>
+      <label class="file-import"><input type="file" id="corpusFile" accept=".txt,.csv,text/plain,text/csv"><span>↥</span><div><strong>Selecionar TXT ou CSV</strong><small>No CSV, procure uma coluna chamada “legenda” ou “caption”</small></div></label>
+      <div class="or"><span>ou cole abaixo</span></div>
+      <textarea id="manualCorpus" rows="8" placeholder="Cole a primeira legenda aqui...&#10;&#10;Cole a segunda legenda aqui..."></textarea>
+      <div class="modal-actions"><button class="secondary-button" id="cancelImport">Cancelar</button><button class="primary-small" id="saveImport">Adicionar à base</button></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="instagramModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="instagramTitle">
+      <button class="modal-close" id="closeInstagram">×</button>
+      <span class="eyebrow">IMPORTAÇÃO AUTOMÁTICA</span><h2 id="instagramTitle">Ler perfil do Instagram</h2>
+      <p>Use uma lista de posts gratuitamente ou conecte um coletor de perfil. Publicações já importadas não serão duplicadas.</p>
+      <div class="method-tabs"><button data-instagram-method="links" class="active">Links dos posts · grátis</button><button data-instagram-method="profile">Perfil completo</button></div>
+      <div class="modal-unit"><button class="active" data-instagram-unit="Colatina">Colatina</button><button data-instagram-unit="Linhares">Linhares</button></div>
+      <div class="connection-note" id="instagramConnection"><i></i><div><strong>Verificando autorização</strong><small>Aguarde um instante</small></div></div>
+      <div id="instagramLinksPanel">
+        <label class="modal-field">Links das publicações<textarea id="instagramPostLinks" rows="8" placeholder="https://www.instagram.com/p/ABC123/&#10;https://www.instagram.com/reel/DEF456/&#10;Um link por linha"></textarea></label>
+        <small class="link-counter"><b id="instagramLinksCount">0</b> links identificados</small>
+        <div class="import-progress hidden" id="instagramProgress" aria-live="polite">
+          <div class="import-progress-track"><i id="instagramProgressBar"></i></div>
+          <small id="instagramProgressText">Preparando importação...</small>
+        </div>
+      </div>
+      <div id="instagramProfilePanel" class="hidden">
+        <label class="modal-field">Link do perfil<input type="url" id="instagramProfileUrl" placeholder="https://www.instagram.com/perfil/"></label>
+      </div>
+      <label class="modal-field">Ler publicações desde<input type="month" id="instagramStartMonth" value="2024-08" min="2018-01"></label>
+      <div class="instagram-explain"><span>i</span><p id="instagramMethodHelp">O modo por links usa um leitor público gratuito, sem conta ou token. O progresso é salvo a cada publicação.</p></div>
+      <div class="modal-actions"><button class="secondary-button" id="cancelInstagram">Cancelar</button><button class="primary-small" id="syncInstagram">Ler perfil até hoje</button></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="helpModal">
+    <div class="modal help-modal"><button class="modal-close" data-close-help>×</button><span class="eyebrow">GUIA RÁPIDO</span><h2>Como o Caption Lab aprende</h2><div class="help-steps"><div><b>1</b><p><strong>Alimente a base</strong><span>Importe as legendas já publicadas em cada perfil.</span></p></div><div><b>2</b><p><strong>Crie com contexto</strong><span>Envie a arte e um briefing com as informações confirmadas.</span></p></div><div><b>3</b><p><strong>Avalie as opções</strong><span>Likes e dislikes entram na memória das próximas gerações.</span></p></div></div><button class="primary-small full" data-close-help>Entendi</button></div>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

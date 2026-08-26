@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: darwin-caption-lab
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
+      - key: JINA_API_KEY
+        sync: false
+      - key: APP_USERNAME
+        value: upli
+      - key: APP_PASSWORD
+        sync: false
+      - key: INSTAGRAM_TOKEN_COLATINA
+        sync: false
+      - key: INSTAGRAM_TOKEN_LINHARES
+        sync: false
+      - key: APIFY_API_TOKEN
+        sync: false
+      - key: APIFY_ACTOR_ID
+        value: apify~instagram-scraper
+      - key: APIFY_MAX_POSTS
+        value: 1000
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: caption-lab-data
+      mountPath: /var/data
+      sizeGB: 1
