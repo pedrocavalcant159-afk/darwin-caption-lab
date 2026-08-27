@@ -10,9 +10,11 @@ const app = {
   instagramMethod: "links",
   corpusFilter: "Todas",
   currentCaptions: [],
-  session: { authenticated: false, googleLoginUrl: "" },
+  session: { authenticated: false, googleLoginUrl: "", supabaseUrl: "", supabasePublishableKey: "" },
   started: false
 };
+
+let supabaseClient = null;
 
 const elements = {
   form: $("#captionForm"),
@@ -33,8 +35,11 @@ init();
 async function init() {
   bindLogin();
   try {
+    app.session = await api("/api/session");
+    configureSupabase();
     await completeGoogleLogin();
     app.session = await api("/api/session");
+    updatePasskeyLoginAvailability();
     if (app.session.authenticated) return startApplication();
     $("#loginUsername").value = app.session.username || "";
   } catch (error) {
@@ -59,12 +64,35 @@ function bindLogin() {
     }
     setLoginError("O acesso com a Conta Google ainda precisa ser configurado pelo administrador.");
   });
+  $("#passkeyLogin").addEventListener("click", loginWithPasskey);
   $("#logoutButton").addEventListener("click", logout);
+}
+
+function configureSupabase() {
+  if (!app.session.supabaseUrl || !app.session.supabasePublishableKey || !window.supabase?.createClient) return;
+  supabaseClient = window.supabase.createClient(
+    app.session.supabaseUrl,
+    app.session.supabasePublishableKey,
+    {
+      auth: {
+        detectSessionInUrl: false,
+        persistSession: true,
+        autoRefreshToken: true,
+        experimental: { passkey: true }
+      }
+    }
+  );
+}
+
+function updatePasskeyLoginAvailability() {
+  const supported = Boolean(supabaseClient && window.PublicKeyCredential && navigator.credentials);
+  $("#passkeyLogin").classList.toggle("hidden", !supported);
 }
 
 async function completeGoogleLogin() {
   const parameters = new URLSearchParams(window.location.hash.slice(1));
   const accessToken = parameters.get("access_token");
+  const refreshToken = parameters.get("refresh_token");
   const oauthError = parameters.get("error_description") || parameters.get("error");
   if (!accessToken && !oauthError) return false;
 
@@ -77,11 +105,45 @@ async function completeGoogleLogin() {
   const button = $("#googleLogin");
   button.disabled = true;
   try {
-    await api("/api/login/google", {
+    const response = await api("/api/login/google", {
       method: "POST",
       body: JSON.stringify({ accessToken, remember })
     });
+    if (supabaseClient && refreshToken) {
+      const { error } = await supabaseClient.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+      if (error) throw error;
+    }
+    app.session = { ...app.session, authenticated: true, username: response.username };
     return true;
+  } catch (error) {
+    try { await supabaseClient?.auth.signOut({ scope: "local" }); } catch {}
+    throw error;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function loginWithPasskey() {
+  setLoginError("");
+  const button = $("#passkeyLogin");
+  button.disabled = true;
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPasskey();
+    if (error) throw error;
+    const accessToken = data?.session?.access_token;
+    if (!accessToken) throw new Error("A passkey não retornou uma sessão válida.");
+    const response = await api("/api/login/google", {
+      method: "POST",
+      body: JSON.stringify({ accessToken, remember: $("#rememberLogin").checked })
+    });
+    app.session = { ...app.session, authenticated: true, username: response.username };
+    await startApplication();
+  } catch (error) {
+    try { await supabaseClient?.auth.signOut({ scope: "local" }); } catch {}
+    setLoginError(passkeyErrorMessage(error));
   } finally {
     button.disabled = false;
   }
@@ -117,21 +179,30 @@ async function loginWithPassword(event) {
 async function updateBiometricAvailability() {
   const status = $("#biometricDeviceStatus");
   const button = $("#biometricSetupConfirm");
-  if (!window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable) {
+  if (!supabaseClient || !window.PublicKeyCredential || !navigator.credentials) {
     status.classList.add("unavailable");
-    $("strong", status).textContent = "Biometria indisponível";
-    $("small", status).textContent = "Este navegador não oferece suporte a passkeys.";
+    status.classList.remove("available");
+    $("strong", status).textContent = "Passkeys indisponíveis";
+    $("small", status).textContent = "Atualize o navegador ou tente em outro dispositivo.";
     button.disabled = true;
     return false;
   }
+  if (!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+    status.classList.add("available");
+    status.classList.remove("unavailable");
+    $("strong", status).textContent = "Navegador compatível";
+    $("small", status).textContent = "O dispositivo escolherá a forma de proteção disponível.";
+    button.disabled = false;
+    return true;
+  }
   try {
     const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-    status.classList.toggle("available", available);
-    status.classList.toggle("unavailable", !available);
-    $("strong", status).textContent = available ? "Dispositivo compatível" : "Biometria indisponível";
-    $("small", status).textContent = available ? "Face ID, digital ou proteção de tela detectada." : "Nenhum autenticador compatível foi encontrado.";
-    button.disabled = !available;
-    return available;
+    status.classList.add("available");
+    status.classList.remove("unavailable");
+    $("strong", status).textContent = available ? "Dispositivo compatível" : "Use uma passkey disponível";
+    $("small", status).textContent = available ? "Face ID, digital ou proteção de tela detectada." : "Você poderá usar um celular, gerenciador de senhas ou chave de segurança.";
+    button.disabled = false;
+    return true;
   } catch {
     status.classList.add("unavailable");
     $("strong", status).textContent = "Não foi possível verificar";
@@ -142,7 +213,9 @@ async function updateBiometricAvailability() {
 }
 
 async function openBiometricSetup() {
-  $("#biometricSetupMessage").classList.add("hidden");
+  const message = $("#biometricSetupMessage");
+  message.classList.add("hidden");
+  message.classList.remove("success");
   elements.biometricModal.classList.remove("hidden");
   await updateBiometricAvailability();
 }
@@ -155,11 +228,46 @@ async function registerBiometrics() {
   const available = await updateBiometricAvailability();
   if (!available) return;
   const message = $("#biometricSetupMessage");
-  message.textContent = "Este dispositivo está pronto. Para concluir o cadastro, ative Passkeys no Supabase Auth e conecte a verificação ao aplicativo.";
-  message.classList.remove("hidden");
+  const button = $("#biometricSetupConfirm");
+  message.classList.add("hidden");
+  message.classList.remove("success");
+  button.disabled = true;
+  button.textContent = "Confirmando...";
+  try {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    if (!sessionData?.session) {
+      throw new Error("Para vincular a biometria, saia e entre novamente com a Conta Google.");
+    }
+    const { data, error } = await supabaseClient.auth.registerPasskey();
+    if (error) throw error;
+    message.textContent = `Passkey cadastrada com sucesso${data?.friendly_name ? `: ${data.friendly_name}` : ""}.`;
+    message.classList.add("success");
+    message.classList.remove("hidden");
+    $("strong", $("#biometricDeviceStatus")).textContent = "Cadastro concluído";
+    $("small", $("#biometricDeviceStatus")).textContent = "Você já pode usar a biometria na próxima entrada.";
+  } catch (error) {
+    message.textContent = passkeyErrorMessage(error);
+    message.classList.remove("hidden");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Cadastrar neste dispositivo";
+  }
+}
+
+function passkeyErrorMessage(error) {
+  const code = String(error?.code || "");
+  const name = String(error?.name || "");
+  const message = String(error?.message || error || "");
+  if (name === "NotAllowedError" || /not allowed|cancel/i.test(message)) return "A confirmação foi cancelada ou demorou demais. Tente novamente.";
+  if (code === "passkey_disabled") return "Ative Passkeys em Authentication → Passkeys no Supabase.";
+  if (code === "webauthn_credential_exists") return "Este dispositivo já possui uma passkey cadastrada para esta conta.";
+  if (code === "webauthn_credential_not_found") return "Nenhuma passkey cadastrada foi encontrada neste dispositivo.";
+  if (/Browser does not support WebAuthn/i.test(message)) return "Este navegador não oferece suporte a passkeys.";
+  return message || "Não foi possível concluir a autenticação biométrica.";
 }
 
 async function logout() {
+  try { await supabaseClient?.auth.signOut({ scope: "local" }); } catch {}
   try { await api("/api/logout", { method: "POST" }); }
   finally { window.location.reload(); }
 }

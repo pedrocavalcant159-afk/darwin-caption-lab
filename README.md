@@ -72,7 +72,7 @@ O projeto também está preparado para a runtime Python da Vercel. A integraçã
 3. Configure `GROQ_API_KEY`, `APP_USERNAME` e `APP_PASSWORD` em **Settings > Environment Variables**.
 4. Faça um novo deploy para carregar as variáveis.
 
-`POSTGRES_URL` e as demais credenciais do Supabase devem permanecer somente nas variáveis protegidas da Vercel, nunca no Git ou no navegador.
+`POSTGRES_URL`, o Client Secret do Google e qualquer chave administrativa do Supabase devem permanecer somente nas variáveis protegidas da Vercel, nunca no Git ou no navegador. A Publishable Key é pública por definição e é usada pelo cliente oficial para autenticação.
 
 #### Entrar com Google
 
@@ -82,7 +82,13 @@ O projeto também está preparado para a runtime Python da Vercel. A integraçã
 4. Na Vercel, confirme que `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` estão disponíveis. Os nomes mostrados pelo painel do Supabase (`NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) também são aceitos, assim como as chaves anon legadas.
 5. Recomenda-se preencher `GOOGLE_ALLOWED_EMAILS` com os e-mails autorizados, separados por vírgula. Se ficar vazio, qualquer usuário autenticado pelo Google poderá entrar.
 
-O retorno do Google é validado pelo servidor diretamente no Supabase. O token recebido é removido da URL e não é salvo no armazenamento do navegador. A opção de cadastrar biometria continua aparecendo somente depois que a sessão for criada.
+O retorno do Google é validado pelo servidor diretamente no Supabase. Os tokens são removidos imediatamente da URL, e a sessão pública passa a ser gerenciada pelo cliente oficial do Supabase para permitir o cadastro da passkey. A opção de cadastrar biometria continua aparecendo somente depois que a sessão do Caption Lab for criada.
+
+#### Face ID, digital e passkeys
+
+Em **Authentication > Passkeys**, habilite o recurso e use `Darwin Caption Lab` como nome, `darwin-caption-lab-weld.vercel.app` como Relying Party ID e `https://darwin-caption-lab-weld.vercel.app` como origem. O cadastro só é oferecido dentro da área autenticada. Depois que uma passkey for registrada, a tela inicial permite entrar com Face ID, digital, Windows Hello, proteção de tela ou uma passkey sincronizada.
+
+O suporte a passkeys do Supabase é experimental e exige `@supabase/supabase-js` 2.105.0 ou superior. O projeto fixa a versão 2.112.4 do cliente e verifica a integridade do arquivo carregado.
 
 ### Deploy no Render
 

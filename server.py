@@ -858,7 +858,9 @@ class AppHandler(SimpleHTTPRequestHandler):
             return self.send_json(200, {
                 "authenticated": self.authenticated(respond=False),
                 "username": os.getenv("APP_USERNAME", "upli"),
-                "googleLoginUrl": google_login_url()
+                "googleLoginUrl": google_login_url(),
+                "supabaseUrl": supabase_url(),
+                "supabasePublishableKey": supabase_public_key()
             })
         if self.path == "/api/health":
             config = ai_config()
