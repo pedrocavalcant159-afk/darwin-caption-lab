@@ -781,9 +781,10 @@ FEEDBACKS NEGATIVOS
             config["url"],
             data=json.dumps(payload).encode("utf-8"),
             headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {config['api_key']}"
-            },
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {config['api_key']}",
+    "User-Agent": "DarwinCaptionLab/1.0"
+}
             method="POST"
         )
         try:
