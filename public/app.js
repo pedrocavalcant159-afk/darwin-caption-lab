@@ -15,6 +15,7 @@ const app = {
 };
 
 let supabaseClient = null;
+const PASSKEY_ENROLLED_KEY = "captionLabPasskeyEnrolled";
 
 const elements = {
   form: $("#captionForm"),
@@ -37,10 +38,14 @@ async function init() {
   try {
     app.session = await api("/api/session");
     configureSupabase();
-    await completeGoogleLogin();
+    const completedGoogleLogin = await completeGoogleLogin();
     app.session = await api("/api/session");
     updatePasskeyLoginAvailability();
-    if (app.session.authenticated) return startApplication();
+    if (app.session.authenticated) {
+      await startApplication();
+      if (completedGoogleLogin && !hasEnrolledPasskey()) await openBiometricSetup();
+      return;
+    }
     $("#loginUsername").value = app.session.username || "";
   } catch (error) {
     setLoginError(error.message);
@@ -85,8 +90,17 @@ function configureSupabase() {
 }
 
 function updatePasskeyLoginAvailability() {
-  const supported = Boolean(supabaseClient && window.PublicKeyCredential && navigator.credentials);
-  $("#passkeyLogin").classList.toggle("hidden", !supported);
+  const canSignIn = Boolean(
+    hasEnrolledPasskey()
+    && supabaseClient
+    && window.PublicKeyCredential
+    && navigator.credentials
+  );
+  $("#passkeyLogin").classList.toggle("hidden", !canSignIn);
+}
+
+function hasEnrolledPasskey() {
+  return localStorage.getItem(PASSKEY_ENROLLED_KEY) === "1";
 }
 
 async function completeGoogleLogin() {
@@ -140,9 +154,14 @@ async function loginWithPasskey() {
       body: JSON.stringify({ accessToken, remember: $("#rememberLogin").checked })
     });
     app.session = { ...app.session, authenticated: true, username: response.username };
+    localStorage.setItem(PASSKEY_ENROLLED_KEY, "1");
     await startApplication();
   } catch (error) {
     try { await supabaseClient?.auth.signOut({ scope: "local" }); } catch {}
+    if (String(error?.code || "") === "webauthn_credential_not_found") {
+      localStorage.removeItem(PASSKEY_ENROLLED_KEY);
+      updatePasskeyLoginAvailability();
+    }
     setLoginError(passkeyErrorMessage(error));
   } finally {
     button.disabled = false;
@@ -167,6 +186,7 @@ async function loginWithPassword(event) {
     app.session = { ...app.session, authenticated: true, username: response.username };
     $("#loginPassword").value = "";
     await startApplication();
+    if (!hasEnrolledPasskey()) await openBiometricSetup();
   } catch (error) {
     setLoginError(error.message);
     $("#loginPassword").select();
@@ -218,6 +238,14 @@ async function openBiometricSetup() {
   message.classList.remove("success");
   elements.biometricModal.classList.remove("hidden");
   await updateBiometricAvailability();
+  if (supabaseClient) {
+    const { data } = await supabaseClient.auth.getSession();
+    if (!data?.session) {
+      message.textContent = "Para proteger este acesso, confirme uma vez a Conta Google autorizada. Depois disso, a biometria substituirá a senha neste dispositivo.";
+      message.classList.remove("hidden");
+      $("#biometricSetupConfirm").textContent = "Continuar com Google";
+    }
+  }
 }
 
 function closeBiometricSetup() {
@@ -236,7 +264,10 @@ async function registerBiometrics() {
   try {
     const { data: sessionData } = await supabaseClient.auth.getSession();
     if (!sessionData?.session) {
-      throw new Error("Para vincular a biometria, saia e entre novamente com a Conta Google.");
+      if (!app.session.googleLoginUrl) throw new Error("O login Google ainda não está configurado.");
+      sessionStorage.setItem("captionLabGoogleRemember", "1");
+      window.location.assign(app.session.googleLoginUrl);
+      return;
     }
     const { data, error } = await supabaseClient.auth.registerPasskey();
     if (error) throw error;
@@ -245,9 +276,19 @@ async function registerBiometrics() {
     message.classList.remove("hidden");
     $("strong", $("#biometricDeviceStatus")).textContent = "Cadastro concluído";
     $("small", $("#biometricDeviceStatus")).textContent = "Você já pode usar a biometria na próxima entrada.";
+    localStorage.setItem(PASSKEY_ENROLLED_KEY, "1");
+    updatePasskeyLoginAvailability();
   } catch (error) {
-    message.textContent = passkeyErrorMessage(error);
-    message.classList.remove("hidden");
+    if (String(error?.code || "") === "webauthn_credential_exists") {
+      localStorage.setItem(PASSKEY_ENROLLED_KEY, "1");
+      updatePasskeyLoginAvailability();
+      message.textContent = "A biometria já está cadastrada para esta conta.";
+      message.classList.add("success");
+      message.classList.remove("hidden");
+    } else {
+      message.textContent = passkeyErrorMessage(error);
+      message.classList.remove("hidden");
+    }
   } finally {
     button.disabled = false;
     button.textContent = "Cadastrar neste dispositivo";

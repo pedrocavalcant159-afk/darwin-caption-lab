@@ -86,7 +86,7 @@ O retorno do Google é validado pelo servidor diretamente no Supabase. Os tokens
 
 #### Face ID, digital e passkeys
 
-Em **Authentication > Passkeys**, habilite o recurso e use `Darwin Caption Lab` como nome, `darwin-caption-lab-weld.vercel.app` como Relying Party ID e `https://darwin-caption-lab-weld.vercel.app` como origem. O cadastro só é oferecido dentro da área autenticada. Depois que uma passkey for registrada, a tela inicial permite entrar com Face ID, digital, Windows Hello, proteção de tela ou uma passkey sincronizada.
+Em **Authentication > Passkeys**, habilite o recurso e use `Darwin Caption Lab` como nome, `darwin-caption-lab-weld.vercel.app` como Relying Party ID e `https://darwin-caption-lab-weld.vercel.app` como origem. Antes do cadastro, a tela inicial mostra somente senha e Google. A oferta de biometria aparece depois de um login válido; somente após a passkey ser registrada a tela inicial passa a exibir Face ID, digital ou Windows Hello. Quem começar pelo login local confirma a Conta Google autorizada uma vez para vincular a passkey à identidade do Supabase.
 
 O suporte a passkeys do Supabase é experimental e exige `@supabase/supabase-js` 2.105.0 ou superior. O projeto fixa a versão 2.112.4 do cliente e verifica a integridade do arquivo carregado.
 
