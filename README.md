@@ -79,7 +79,7 @@ O projeto também está preparado para a runtime Python da Vercel. A integraçã
 1. No Google Cloud, crie um cliente OAuth do tipo **Aplicativo da Web** e use como URI de redirecionamento autorizada a URL de callback exibida pelo provedor Google no Supabase.
 2. No Supabase, abra **Authentication > Sign In / Providers > Google**, informe o Client ID e o Client Secret do Google e mantenha o provedor habilitado.
 3. Em **Authentication > URL Configuration**, defina **Site URL** como a URL pública do aplicativo, por exemplo `https://darwin-caption-lab-weld.vercel.app/`.
-4. Na Vercel, confirme que `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` estão disponíveis. Também são aceitas `SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+4. Na Vercel, confirme que `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` estão disponíveis. Os nomes mostrados pelo painel do Supabase (`NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) também são aceitos, assim como as chaves anon legadas.
 5. Recomenda-se preencher `GOOGLE_ALLOWED_EMAILS` com os e-mails autorizados, separados por vírgula. Se ficar vazio, qualquer usuário autenticado pelo Google poderá entrar.
 
 O retorno do Google é validado pelo servidor diretamente no Supabase. O token recebido é removido da URL e não é salvo no armazenamento do navegador. A opção de cadastrar biometria continua aparecendo somente depois que a sessão for criada.

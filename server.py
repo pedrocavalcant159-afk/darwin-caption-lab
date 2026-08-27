@@ -211,6 +211,7 @@ def supabase_url():
 def supabase_public_key():
     return (
         os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+        or os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "").strip()
         or os.getenv("SUPABASE_ANON_KEY", "").strip()
         or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "").strip()
     )
