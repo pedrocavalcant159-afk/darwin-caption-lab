@@ -694,7 +694,10 @@ def generate_with_ai(body, state, config):
 
 Aprenda o padrão editorial a partir dos exemplos. Não copie frases inteiras. Preserve voz, estrutura, ritmo e densidade de emojis. Diferencie a unidade quando houver evidência. Nunca invente preços, datas, resultados, profissionais, endereços ou condições. Se faltar um dado essencial, escreva de modo seguro sem fabricá-lo.
 
-Gere exatamente 3 opções diferentes: uma direta, uma narrativa e uma de conversa. Cada uma deve ter abertura forte, desenvolvimento, CTA coerente e hashtags relevantes. Respeite tamanho, emojis, objetivo e tipo de conteúdo. Retorne somente JSON conforme o schema."""
+Gere exatamente 3 opções diferentes: uma direta, uma narrativa e uma de conversa. Cada uma deve ter abertura forte, desenvolvimento, CTA coerente e hashtags relevantes. Respeite tamanho, emojis, objetivo e tipo de conteúdo.
+
+Retorne somente um objeto JSON neste formato, sem markdown ou texto adicional:
+{{"captions":[{{"label":"Direta","strategy":"resumo da estratégia","text":"legenda completa"}},{{"label":"Narrativa","strategy":"resumo da estratégia","text":"legenda completa"}},{{"label":"Conversa","strategy":"resumo da estratégia","text":"legenda completa"}}]}}"""
 
     prompt = f"""BRIEFING
 Unidade: {unit}
@@ -719,32 +722,34 @@ FEEDBACKS NEGATIVOS
     if isinstance(image, str) and image.startswith("data:image/"):
         content.append({"type": "input_image", "image_url": image, "detail": "auto"})
 
+    schema_format = {
+        "type": "json_schema",
+        "name": "caption_options",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["captions"],
+            "properties": {"captions": {
+                "type": "array", "minItems": 3, "maxItems": 3,
+                "items": {
+                    "type": "object", "additionalProperties": False,
+                    "required": ["label", "text", "strategy"],
+                    "properties": {
+                        "label": {"type": "string"},
+                        "text": {"type": "string"},
+                        "strategy": {"type": "string"}
+                    }
+                }
+            }}
+        }
+    }
+    output_format = {"type": "json_object"} if config["provider"] == "Groq" else schema_format
     payload = {
         "model": config["model"],
         "instructions": instructions,
         "input": [{"role": "user", "content": content}],
-        "text": {"format": {
-            "type": "json_schema",
-            "name": "caption_options",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["captions"],
-                "properties": {"captions": {
-                    "type": "array", "minItems": 3, "maxItems": 3,
-                    "items": {
-                        "type": "object", "additionalProperties": False,
-                        "required": ["label", "text", "strategy"],
-                        "properties": {
-                            "label": {"type": "string"},
-                            "text": {"type": "string"},
-                            "strategy": {"type": "string"}
-                        }
-                    }
-                }}
-            }
-        }},
+        "text": {"format": output_format},
         "max_output_tokens": 1800
     }
     if config["provider"] == "OpenAI":
@@ -765,9 +770,19 @@ FEEDBACKS NEGATIVOS
     except urllib.error.HTTPError as error:
         try:
             details = json.loads(error.read().decode("utf-8"))
-            message = details.get("error", {}).get("message", f"A {config['provider']} recusou a solicitação.")
+            error_details = details.get("error", details) if isinstance(details, dict) else details
+            if isinstance(error_details, dict):
+                message = error_details.get("message") or error_details.get("code")
+            else:
+                message = str(error_details or "")
         except Exception:
-            message = f"A {config['provider']} recusou a solicitação."
+            message = ""
+        if error.code == 401:
+            message = f"A chave da {config['provider']} foi recusada. Gere uma nova chave e atualize a Vercel."
+        elif error.code == 429:
+            message = f"O limite temporário da {config['provider']} foi atingido. Aguarde um pouco e tente novamente."
+        elif not message:
+            message = f"A {config['provider']} recusou a solicitação (status {error.code})."
         raise RuntimeError(message) from error
     except urllib.error.URLError as error:
         raise RuntimeError("Não foi possível conectar à API. Verifique a internet.") from error
