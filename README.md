@@ -22,7 +22,7 @@ O sistema funciona imediatamente em **modo demonstração**, sem instalar pacote
 2. Preencha `GROQ_API_KEY` com uma chave válida e recém-gerada.
 3. Reinicie `python server.py`.
 
-A chave fica somente no servidor e nunca é enviada ao navegador. A integração usa a Responses API compatível da Groq com leitura de imagens e saída estruturada. O modelo padrão é `qwen/qwen3.8-27b` e pode ser alterado em `GROQ_MODEL`. Se a Groq não estiver configurada, o projeto ainda aceita OpenAI como alternativa.
+A chave fica somente no servidor e nunca é enviada ao navegador. A integração usa a Responses API compatível da Groq com leitura de imagens e saída estruturada. O modelo padrão é `qwen/qwen3.6-27b` e pode ser alterado em `GROQ_MODEL`. Se outro modelo configurado estiver bloqueado, o servidor tenta automaticamente o Qwen 3.6. Se a Groq não estiver configurada, o projeto ainda aceita OpenAI como alternativa.
 
 ## Como alimentar a voz
 

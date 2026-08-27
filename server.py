@@ -179,7 +179,7 @@ def ai_config():
         return {
             "provider": "Groq",
             "api_key": groq_key,
-            "model": os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b"),
+            "model": os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b"),
             "url": "https://api.groq.com/openai/v1/responses"
         }
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
@@ -755,37 +755,50 @@ FEEDBACKS NEGATIVOS
     if config["provider"] == "OpenAI":
         payload["store"] = False
 
-    request = urllib.request.Request(
-        config["url"],
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {config['api_key']}"
-        },
-        method="POST"
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=90) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
+    models = [config["model"]]
+    groq_fallback = "qwen/qwen3.6-27b"
+    if config["provider"] == "Groq" and config["model"] != groq_fallback:
+        models.append(groq_fallback)
+
+    data = None
+    for model_index, model in enumerate(models):
+        payload["model"] = model
+        request = urllib.request.Request(
+            config["url"],
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config['api_key']}"
+            },
+            method="POST"
+        )
         try:
-            details = json.loads(error.read().decode("utf-8"))
-            error_details = details.get("error", details) if isinstance(details, dict) else details
-            if isinstance(error_details, dict):
-                message = error_details.get("message") or error_details.get("code")
-            else:
-                message = str(error_details or "")
-        except Exception:
-            message = ""
-        if error.code == 401:
-            message = f"A chave da {config['provider']} foi recusada. Gere uma nova chave e atualize a Vercel."
-        elif error.code == 429:
-            message = f"O limite temporário da {config['provider']} foi atingido. Aguarde um pouco e tente novamente."
-        elif not message:
-            message = f"A {config['provider']} recusou a solicitação (status {error.code})."
-        raise RuntimeError(message) from error
-    except urllib.error.URLError as error:
-        raise RuntimeError("Não foi possível conectar à API. Verifique a internet.") from error
+            with urllib.request.urlopen(request, timeout=90) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as error:
+            if error.code == 403 and model_index + 1 < len(models):
+                continue
+            try:
+                details = json.loads(error.read().decode("utf-8"))
+                error_details = details.get("error", details) if isinstance(details, dict) else details
+                if isinstance(error_details, dict):
+                    message = error_details.get("message") or error_details.get("code")
+                else:
+                    message = str(error_details or "")
+            except Exception:
+                message = ""
+            if error.code == 401:
+                message = f"A chave da {config['provider']} foi recusada. Gere uma nova chave e atualize a Vercel."
+            elif error.code == 403:
+                message = "A Groq bloqueou o modelo para este projeto. Libere o Qwen 3.6 em Settings → Project → Limits."
+            elif error.code == 429:
+                message = f"O limite temporário da {config['provider']} foi atingido. Aguarde um pouco e tente novamente."
+            elif not message:
+                message = f"A {config['provider']} recusou a solicitação (status {error.code})."
+            raise RuntimeError(message) from error
+        except urllib.error.URLError as error:
+            raise RuntimeError("Não foi possível conectar à API. Verifique a internet.") from error
 
     output_text = data.get("output_text")
     if not output_text:
