@@ -790,7 +790,7 @@ FEEDBACKS NEGATIVOS
                 message = ""
             if error.code == 401:
                 message = f"A chave da {config['provider']} foi recusada. Gere uma nova chave e atualize a Vercel."
-            elif error.code == 403:
+            elif error.code == 403 and not message:
                 message = "A Groq bloqueou o modelo para este projeto. Libere o Qwen 3.6 em Settings → Project → Limits."
             elif error.code == 429:
                 message = f"O limite temporário da {config['provider']} foi atingido. Aguarde um pouco e tente novamente."
