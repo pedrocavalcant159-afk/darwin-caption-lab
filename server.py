@@ -180,7 +180,7 @@ def ai_config():
             "provider": "Groq",
             "api_key": groq_key,
             "model": os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b"),
-            "url": "https://api.groq.com/openai/v1/responses"
+            "url": "https://api.groq.com/openai/v1/chat/completions"
         }
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     if openai_key:
@@ -744,15 +744,29 @@ FEEDBACKS NEGATIVOS
             }}
         }
     }
-    output_format = {"type": "json_object"} if config["provider"] == "Groq" else schema_format
-    payload = {
-        "model": config["model"],
-        "instructions": instructions,
-        "input": [{"role": "user", "content": content}],
-        "text": {"format": output_format},
-        "max_output_tokens": 1400
-    }
-    if config["provider"] == "OpenAI":
+    if config["provider"] == "Groq":
+        groq_content = [{"type": "text", "text": prompt}]
+        if isinstance(image, str) and image.startswith("data:image/"):
+            groq_content.append({"type": "image_url", "image_url": {"url": image}})
+        payload = {
+            "model": config["model"],
+            "messages": [
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": groq_content}
+            ],
+            "response_format": {"type": "json_object"},
+            "max_completion_tokens": 1400,
+            "reasoning_effort": "none",
+            "stream": False
+        }
+    else:
+        payload = {
+            "model": config["model"],
+            "instructions": instructions,
+            "input": [{"role": "user", "content": content}],
+            "text": {"format": schema_format},
+            "max_output_tokens": 1400
+        }
         payload["store"] = False
 
     models = [config["model"]]
@@ -791,7 +805,7 @@ FEEDBACKS NEGATIVOS
             if error.code == 401:
                 message = f"A chave da {config['provider']} foi recusada. Gere uma nova chave e atualize a Vercel."
             elif error.code == 403 and not message:
-                message = "A Groq bloqueou o modelo para este projeto. Libere o Qwen 3.6 em Settings → Project → Limits."
+                message = "A Groq negou esta solicitação (403). Confirme se a chave da Vercel foi criada no Projeto Padrão."
             elif error.code == 429:
                 message = f"O limite temporário da {config['provider']} foi atingido. Aguarde um pouco e tente novamente."
             elif not message:
@@ -800,8 +814,12 @@ FEEDBACKS NEGATIVOS
         except urllib.error.URLError as error:
             raise RuntimeError("Não foi possível conectar à API. Verifique a internet.") from error
 
-    output_text = data.get("output_text")
-    if not output_text:
+    if config["provider"] == "Groq":
+        choices = data.get("choices", [])
+        output_text = choices[0].get("message", {}).get("content") if choices else None
+    else:
+        output_text = data.get("output_text")
+    if not output_text and config["provider"] != "Groq":
         for item in data.get("output", []):
             for part in item.get("content", []):
                 if part.get("type") == "output_text":
