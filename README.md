@@ -74,6 +74,16 @@ O projeto também está preparado para a runtime Python da Vercel. A integraçã
 
 `POSTGRES_URL` e as demais credenciais do Supabase devem permanecer somente nas variáveis protegidas da Vercel, nunca no Git ou no navegador.
 
+#### Entrar com Google
+
+1. No Google Cloud, crie um cliente OAuth do tipo **Aplicativo da Web** e use como URI de redirecionamento autorizada a URL de callback exibida pelo provedor Google no Supabase.
+2. No Supabase, abra **Authentication > Sign In / Providers > Google**, informe o Client ID e o Client Secret do Google e mantenha o provedor habilitado.
+3. Em **Authentication > URL Configuration**, defina **Site URL** como a URL pública do aplicativo, por exemplo `https://darwin-caption-lab-weld.vercel.app/`.
+4. Na Vercel, confirme que `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` estão disponíveis. Também são aceitas `SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+5. Recomenda-se preencher `GOOGLE_ALLOWED_EMAILS` com os e-mails autorizados, separados por vírgula. Se ficar vazio, qualquer usuário autenticado pelo Google poderá entrar.
+
+O retorno do Google é validado pelo servidor diretamente no Supabase. O token recebido é removido da URL e não é salvo no armazenamento do navegador. A opção de cadastrar biometria continua aparecendo somente depois que a sessão for criada.
+
 ### Deploy no Render
 
 1. Envie esta pasta para um repositório privado no GitHub.
@@ -93,7 +103,10 @@ Variáveis disponíveis:
 - `OPENAI_API_KEY` e `OPENAI_MODEL`: alternativa opcional;
 - `APP_USERNAME`: usuário da proteção de acesso;
 - `APP_PASSWORD`: senha obrigatória recomendada para produção;
-- `GOOGLE_LOGIN_URL`: URL opcional do fluxo OAuth configurado para entrar com Google;
+- `SUPABASE_URL`: endereço do projeto Supabase usado pelo login Google;
+- `SUPABASE_PUBLISHABLE_KEY`: chave pública do Supabase usada apenas para validar o usuário autenticado;
+- `GOOGLE_ALLOWED_EMAILS`: lista opcional de Contas Google autorizadas, separadas por vírgula;
+- `GOOGLE_LOGIN_URL`: substituição opcional da URL OAuth gerada automaticamente;
 - `INSTAGRAM_TOKEN_COLATINA`: autorização oficial do perfil de Colatina;
 - `INSTAGRAM_TOKEN_LINHARES`: autorização oficial do perfil de Linhares;
 - `APIFY_API_TOKEN`: token para coleta de perfis públicos sem acesso administrativo;

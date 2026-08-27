@@ -201,6 +201,79 @@ def session_secret():
     return (os.getenv("APP_SESSION_SECRET", "").strip() or os.getenv("APP_PASSWORD", "").strip()).encode("utf-8")
 
 
+def supabase_url():
+    return (
+        os.getenv("SUPABASE_URL", "").strip()
+        or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "").strip()
+    ).rstrip("/")
+
+
+def supabase_public_key():
+    return (
+        os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+        or os.getenv("SUPABASE_ANON_KEY", "").strip()
+        or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "").strip()
+    )
+
+
+def google_login_url():
+    explicit_url = os.getenv("GOOGLE_LOGIN_URL", "").strip()
+    if explicit_url:
+        return explicit_url
+    if not supabase_url() or not supabase_public_key():
+        return ""
+    query = urllib.parse.urlencode({"provider": "google"})
+    return f"{supabase_url()}/auth/v1/authorize?{query}"
+
+
+def google_allowed_emails():
+    return {
+        email.strip().lower()
+        for email in os.getenv("GOOGLE_ALLOWED_EMAILS", "").split(",")
+        if email.strip()
+    }
+
+
+def validate_google_access_token(access_token):
+    url = supabase_url()
+    public_key = supabase_public_key()
+    if not url or not public_key:
+        raise RuntimeError("O login com Google ainda não foi conectado às variáveis do Supabase.")
+    request = urllib.request.Request(
+        f"{url}/auth/v1/user",
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
+            "apikey": public_key
+        }
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            user = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        if error.code in {400, 401, 403}:
+            raise ValueError("A sessão do Google expirou ou não é válida. Tente entrar novamente.") from error
+        raise RuntimeError("O Supabase recusou temporariamente a validação do Google.") from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise RuntimeError("Não foi possível validar a Conta Google no Supabase.") from error
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("O Supabase retornou uma resposta inválida ao validar o Google.") from error
+
+    metadata = user.get("app_metadata") if isinstance(user, dict) else {}
+    metadata = metadata if isinstance(metadata, dict) else {}
+    providers = metadata.get("providers", [])
+    providers = providers if isinstance(providers, list) else []
+    if metadata.get("provider") != "google" and "google" not in providers:
+        raise ValueError("Use uma Conta Google para entrar.")
+    email = short(user.get("email"), 320).lower()
+    if not email:
+        raise ValueError("A Conta Google não forneceu um e-mail válido.")
+    allowed_emails = google_allowed_emails()
+    if allowed_emails and email not in allowed_emails:
+        raise ValueError("Esta Conta Google não tem permissão para acessar o Caption Lab.")
+    return {"id": short(user.get("id"), 100), "email": email}
+
+
 def create_session_token(username, max_age=SESSION_BROWSER_AGE):
     expires_at = int(time.time()) + max_age
     payload = f"{username}|{expires_at}"
@@ -784,7 +857,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             return self.send_json(200, {
                 "authenticated": self.authenticated(respond=False),
                 "username": os.getenv("APP_USERNAME", "upli"),
-                "googleLoginUrl": os.getenv("GOOGLE_LOGIN_URL", "").strip()
+                "googleLoginUrl": google_login_url()
             })
         if self.path == "/api/health":
             config = ai_config()
@@ -816,6 +889,33 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         self.normalize_route()
+        if self.path == "/api/login/google":
+            try:
+                body = self.read_json()
+                access_token = short(body.get("accessToken"), 10000)
+                if not access_token:
+                    raise ValueError("O Google não retornou uma sessão válida. Tente entrar novamente.")
+                user = validate_google_access_token(access_token)
+                if not session_secret():
+                    raise RuntimeError("Configure APP_PASSWORD ou APP_SESSION_SECRET para proteger as sessões.")
+                remember = body.get("remember") is True
+                max_age = SESSION_MAX_AGE if remember else SESSION_BROWSER_AGE
+                persistence = f" Max-Age={max_age};" if remember else ""
+                username = os.getenv("APP_USERNAME", "upli")
+                cookie = (
+                    f"{SESSION_COOKIE_NAME}={create_session_token(username, max_age)}; "
+                    f"Path=/;{persistence} HttpOnly; SameSite=Lax{self.secure_cookie_suffix()}"
+                )
+                return self.send_json(
+                    200,
+                    {"ok": True, "username": username, "email": user["email"]},
+                    {"Set-Cookie": cookie}
+                )
+            except (ValueError, json.JSONDecodeError) as error:
+                return self.send_json(401, {"error": str(error)})
+            except RuntimeError as error:
+                print(f"Erro no login Google: {error}")
+                return self.send_json(503, {"error": str(error)})
         if self.path == "/api/login":
             try:
                 body = self.read_json()

@@ -33,6 +33,7 @@ init();
 async function init() {
   bindLogin();
   try {
+    await completeGoogleLogin();
     app.session = await api("/api/session");
     if (app.session.authenticated) return startApplication();
     $("#loginUsername").value = app.session.username || "";
@@ -52,10 +53,38 @@ function bindLogin() {
     $("#togglePassword").setAttribute("aria-pressed", String(!visible));
   });
   $("#googleLogin").addEventListener("click", () => {
-    if (app.session.googleLoginUrl) return window.location.assign(app.session.googleLoginUrl);
+    if (app.session.googleLoginUrl) {
+      sessionStorage.setItem("captionLabGoogleRemember", $("#rememberLogin").checked ? "1" : "0");
+      return window.location.assign(app.session.googleLoginUrl);
+    }
     setLoginError("O acesso com a Conta Google ainda precisa ser configurado pelo administrador.");
   });
   $("#logoutButton").addEventListener("click", logout);
+}
+
+async function completeGoogleLogin() {
+  const parameters = new URLSearchParams(window.location.hash.slice(1));
+  const accessToken = parameters.get("access_token");
+  const oauthError = parameters.get("error_description") || parameters.get("error");
+  if (!accessToken && !oauthError) return false;
+
+  history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
+  if (oauthError) throw new Error(oauthError);
+
+  const remember = sessionStorage.getItem("captionLabGoogleRemember") === "1";
+  sessionStorage.removeItem("captionLabGoogleRemember");
+  setLoginError("");
+  const button = $("#googleLogin");
+  button.disabled = true;
+  try {
+    await api("/api/login/google", {
+      method: "POST",
+      body: JSON.stringify({ accessToken, remember })
+    });
+    return true;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function loginWithPassword(event) {
