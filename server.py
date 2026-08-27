@@ -679,16 +679,16 @@ def generate_with_ai(body, state, config):
     unit = unit_name(body.get("unit"))
     corpus = "\n\n".join(
         f"EXEMPLO {index + 1}: {item.get('caption', '')}"
-        for index, item in enumerate([item for item in state["corpus"] if item.get("unit") == unit][:80])
-    )[:45000]
+        for index, item in enumerate([item for item in state["corpus"] if item.get("unit") == unit][:24])
+    )[:12000]
     liked = "\n\n".join(
         f"APROVADA: {item.get('caption', '')}"
-        for item in [item for item in state["feedback"] if item.get("unit") == unit and item.get("rating") == "like"][:20]
-    )[:12000]
+        for item in [item for item in state["feedback"] if item.get("unit") == unit and item.get("rating") == "like"][:8]
+    )[:2500]
     disliked = "\n\n".join(
         f"EVITAR: {item.get('caption', '')} | Motivo: {item.get('reason', '')}"
-        for item in [item for item in state["feedback"] if item.get("unit") == unit and item.get("rating") == "dislike"][:12]
-    )[:7000]
+        for item in [item for item in state["feedback"] if item.get("unit") == unit and item.get("rating") == "dislike"][:5]
+    )[:1500]
 
     instructions = f"""Você é estrategista de conteúdo e copywriter da Darwin, unidade {unit}. Crie legendas de Instagram em português brasileiro, naturais e prontas para publicação.
 
@@ -750,7 +750,7 @@ FEEDBACKS NEGATIVOS
         "instructions": instructions,
         "input": [{"role": "user", "content": content}],
         "text": {"format": output_format},
-        "max_output_tokens": 1800
+        "max_output_tokens": 1400
     }
     if config["provider"] == "OpenAI":
         payload["store"] = False
