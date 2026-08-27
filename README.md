@@ -93,6 +93,7 @@ Variáveis disponíveis:
 - `OPENAI_API_KEY` e `OPENAI_MODEL`: alternativa opcional;
 - `APP_USERNAME`: usuário da proteção de acesso;
 - `APP_PASSWORD`: senha obrigatória recomendada para produção;
+- `GOOGLE_LOGIN_URL`: URL opcional do fluxo OAuth configurado para entrar com Google;
 - `INSTAGRAM_TOKEN_COLATINA`: autorização oficial do perfil de Colatina;
 - `INSTAGRAM_TOKEN_LINHARES`: autorização oficial do perfil de Linhares;
 - `APIFY_API_TOKEN`: token para coleta de perfis públicos sem acesso administrativo;

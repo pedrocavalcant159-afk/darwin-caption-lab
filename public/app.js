@@ -10,7 +10,7 @@ const app = {
   instagramMethod: "links",
   corpusFilter: "Todas",
   currentCaptions: [],
-  session: { authenticated: false, appleLoginUrl: "" },
+  session: { authenticated: false, googleLoginUrl: "" },
   started: false
 };
 
@@ -24,7 +24,8 @@ const elements = {
   generateButton: $("#generateButton"),
   importModal: $("#importModal"),
   instagramModal: $("#instagramModal"),
-  helpModal: $("#helpModal")
+  helpModal: $("#helpModal"),
+  biometricModal: $("#biometricModal")
 };
 
 init();
@@ -38,7 +39,6 @@ async function init() {
   } catch (error) {
     setLoginError(error.message);
   }
-  await updateBiometricAvailability();
   $("#loginUsername").focus();
 }
 
@@ -51,11 +51,10 @@ function bindLogin() {
     $("#togglePassword").setAttribute("aria-label", visible ? "Mostrar senha" : "Ocultar senha");
     $("#togglePassword").setAttribute("aria-pressed", String(!visible));
   });
-  $("#appleLogin").addEventListener("click", () => {
-    if (app.session.appleLoginUrl) return window.location.assign(app.session.appleLoginUrl);
-    setLoginError("O acesso com a Conta Apple ainda precisa ser configurado pelo administrador.");
+  $("#googleLogin").addEventListener("click", () => {
+    if (app.session.googleLoginUrl) return window.location.assign(app.session.googleLoginUrl);
+    setLoginError("O acesso com a Conta Google ainda precisa ser configurado pelo administrador.");
   });
-  $("#biometricLogin").addEventListener("click", loginWithBiometrics);
   $("#logoutButton").addEventListener("click", logout);
 }
 
@@ -87,29 +86,48 @@ async function loginWithPassword(event) {
 }
 
 async function updateBiometricAvailability() {
-  const button = $("#biometricLogin");
+  const status = $("#biometricDeviceStatus");
+  const button = $("#biometricSetupConfirm");
   if (!window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable) {
-    button.classList.add("unavailable");
-    button.querySelector("small").textContent = "Não disponível neste navegador";
+    status.classList.add("unavailable");
+    $("strong", status).textContent = "Biometria indisponível";
+    $("small", status).textContent = "Este navegador não oferece suporte a passkeys.";
+    button.disabled = true;
     return false;
   }
   try {
     const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-    button.classList.toggle("unavailable", !available);
-    button.querySelector("small").textContent = available ? "Face ID ou digital" : "Não disponível neste dispositivo";
+    status.classList.toggle("available", available);
+    status.classList.toggle("unavailable", !available);
+    $("strong", status).textContent = available ? "Dispositivo compatível" : "Biometria indisponível";
+    $("small", status).textContent = available ? "Face ID, digital ou proteção de tela detectada." : "Nenhum autenticador compatível foi encontrado.";
+    button.disabled = !available;
     return available;
   } catch {
-    button.classList.add("unavailable");
+    status.classList.add("unavailable");
+    $("strong", status).textContent = "Não foi possível verificar";
+    $("small", status).textContent = "Tente novamente em outro navegador ou dispositivo.";
+    button.disabled = true;
     return false;
   }
 }
 
-async function loginWithBiometrics() {
-  setLoginError("");
+async function openBiometricSetup() {
+  $("#biometricSetupMessage").classList.add("hidden");
+  elements.biometricModal.classList.remove("hidden");
+  await updateBiometricAvailability();
+}
+
+function closeBiometricSetup() {
+  elements.biometricModal.classList.add("hidden");
+}
+
+async function registerBiometrics() {
   const available = await updateBiometricAvailability();
-  setLoginError(available
-    ? "A biometria está disponível neste dispositivo, mas ainda precisa ser vinculada à sua conta pela administração."
-    : "Face ID ou digital não está disponível neste dispositivo ou navegador.");
+  if (!available) return;
+  const message = $("#biometricSetupMessage");
+  message.textContent = "Este dispositivo está pronto. Para concluir o cadastro, ative Passkeys no Supabase Auth e conecte a verificação ao aplicativo.";
+  message.classList.remove("hidden");
 }
 
 async function logout() {
@@ -607,13 +625,17 @@ function bindUiUtilities() {
   $("#helpButton").addEventListener("click", () => elements.helpModal.classList.remove("hidden"));
   $$('[data-close-help]').forEach((button) => button.addEventListener("click", () => elements.helpModal.classList.add("hidden")));
   elements.helpModal.addEventListener("click", (event) => { if (event.target === elements.helpModal) elements.helpModal.classList.add("hidden"); });
+  $("#biometricSetupButton").addEventListener("click", openBiometricSetup);
+  $("#biometricSetupConfirm").addEventListener("click", registerBiometrics);
+  $$('[data-close-biometric]').forEach((button) => button.addEventListener("click", closeBiometricSetup));
+  elements.biometricModal.addEventListener("click", (event) => { if (event.target === elements.biometricModal) closeBiometricSetup(); });
   $("#themeButton").addEventListener("click", () => {
     document.body.classList.toggle("dark");
     localStorage.setItem("caption-lab-theme", document.body.classList.contains("dark") ? "dark" : "light");
   });
   if (localStorage.getItem("caption-lab-theme") === "dark") document.body.classList.add("dark");
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { closeImport(); closeInstagram(); elements.helpModal.classList.add("hidden"); }
+    if (event.key === "Escape") { closeImport(); closeInstagram(); closeBiometricSetup(); elements.helpModal.classList.add("hidden"); }
   });
 }
 

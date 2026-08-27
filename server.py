@@ -784,7 +784,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             return self.send_json(200, {
                 "authenticated": self.authenticated(respond=False),
                 "username": os.getenv("APP_USERNAME", "upli"),
-                "appleLoginUrl": os.getenv("APPLE_LOGIN_URL", "").strip()
+                "googleLoginUrl": os.getenv("GOOGLE_LOGIN_URL", "").strip()
             })
         if self.path == "/api/health":
             config = ai_config()
