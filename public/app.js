@@ -9,7 +9,9 @@ const app = {
   instagramUnit: "Colatina",
   instagramMethod: "links",
   corpusFilter: "Todas",
-  currentCaptions: []
+  currentCaptions: [],
+  session: { authenticated: false, appleLoginUrl: "" },
+  started: false
 };
 
 const elements = {
@@ -28,6 +30,104 @@ const elements = {
 init();
 
 async function init() {
+  bindLogin();
+  try {
+    app.session = await api("/api/session");
+    if (app.session.authenticated) return startApplication();
+    $("#loginUsername").value = app.session.username || "";
+  } catch (error) {
+    setLoginError(error.message);
+  }
+  await updateBiometricAvailability();
+  $("#loginUsername").focus();
+}
+
+function bindLogin() {
+  $("#loginForm").addEventListener("submit", loginWithPassword);
+  $("#togglePassword").addEventListener("click", () => {
+    const input = $("#loginPassword");
+    const visible = input.type === "text";
+    input.type = visible ? "password" : "text";
+    $("#togglePassword").setAttribute("aria-label", visible ? "Mostrar senha" : "Ocultar senha");
+    $("#togglePassword").setAttribute("aria-pressed", String(!visible));
+  });
+  $("#appleLogin").addEventListener("click", () => {
+    if (app.session.appleLoginUrl) return window.location.assign(app.session.appleLoginUrl);
+    setLoginError("O acesso com a Conta Apple ainda precisa ser configurado pelo administrador.");
+  });
+  $("#biometricLogin").addEventListener("click", loginWithBiometrics);
+  $("#logoutButton").addEventListener("click", logout);
+}
+
+async function loginWithPassword(event) {
+  event.preventDefault();
+  setLoginError("");
+  const button = $("#loginSubmit");
+  button.disabled = true;
+  button.querySelector("b").textContent = "Entrando...";
+  try {
+    const response = await api("/api/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: $("#loginUsername").value.trim(),
+        password: $("#loginPassword").value,
+        remember: $("#rememberLogin").checked
+      })
+    });
+    app.session = { ...app.session, authenticated: true, username: response.username };
+    $("#loginPassword").value = "";
+    await startApplication();
+  } catch (error) {
+    setLoginError(error.message);
+    $("#loginPassword").select();
+  } finally {
+    button.disabled = false;
+    button.querySelector("b").textContent = "Entrar no Caption Lab";
+  }
+}
+
+async function updateBiometricAvailability() {
+  const button = $("#biometricLogin");
+  if (!window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable) {
+    button.classList.add("unavailable");
+    button.querySelector("small").textContent = "Não disponível neste navegador";
+    return false;
+  }
+  try {
+    const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    button.classList.toggle("unavailable", !available);
+    button.querySelector("small").textContent = available ? "Face ID ou digital" : "Não disponível neste dispositivo";
+    return available;
+  } catch {
+    button.classList.add("unavailable");
+    return false;
+  }
+}
+
+async function loginWithBiometrics() {
+  setLoginError("");
+  const available = await updateBiometricAvailability();
+  setLoginError(available
+    ? "A biometria está disponível neste dispositivo, mas ainda precisa ser vinculada à sua conta pela administração."
+    : "Face ID ou digital não está disponível neste dispositivo ou navegador.");
+}
+
+async function logout() {
+  try { await api("/api/logout", { method: "POST" }); }
+  finally { window.location.reload(); }
+}
+
+function setLoginError(message) {
+  const error = $("#loginError");
+  error.textContent = message;
+  error.classList.toggle("hidden", !message);
+}
+
+async function startApplication() {
+  $("#loginScreen").classList.add("hidden");
+  document.body.classList.add("authenticated");
+  if (app.started) return;
+  app.started = true;
   bindNavigation();
   bindComposer();
   bindImport();

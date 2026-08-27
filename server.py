@@ -1,6 +1,7 @@
 import json
 import base64
 import concurrent.futures
+import hashlib
 import hmac
 import html as html_lib
 import mimetypes
@@ -23,6 +24,9 @@ DATA_DIR = Path(os.getenv("DATA_DIR", str(ROOT / "data"))).resolve()
 STATE_FILE = DATA_DIR / "state.json"
 BUNDLED_STATE_FILE = ROOT / "data" / "state.json"
 MAX_BODY_BYTES = 12 * 1024 * 1024
+SESSION_COOKIE_NAME = "caption_lab_session"
+SESSION_MAX_AGE = 30 * 24 * 60 * 60
+SESSION_BROWSER_AGE = 12 * 60 * 60
 STATE_LOCK = threading.RLock()
 JINA_RATE_LOCK = threading.Lock()
 JINA_LAST_REQUEST_AT = 0.0
@@ -191,6 +195,35 @@ def ai_config():
 
 def short(value, maximum):
     return str(value or "").strip()[:maximum]
+
+
+def session_secret():
+    return (os.getenv("APP_SESSION_SECRET", "").strip() or os.getenv("APP_PASSWORD", "").strip()).encode("utf-8")
+
+
+def create_session_token(username, max_age=SESSION_BROWSER_AGE):
+    expires_at = int(time.time()) + max_age
+    payload = f"{username}|{expires_at}"
+    signature = hmac.new(session_secret(), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    raw = f"{payload}|{signature}".encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def valid_session_token(token):
+    if not token or not session_secret():
+        return False
+    try:
+        padding = "=" * (-len(token) % 4)
+        username, expires_at, signature = base64.urlsafe_b64decode(token + padding).decode("utf-8").split("|", 2)
+        payload = f"{username}|{expires_at}"
+        expected = hmac.new(session_secret(), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+        return (
+            hmac.compare_digest(signature, expected)
+            and hmac.compare_digest(username, os.getenv("APP_USERNAME", "upli"))
+            and int(expires_at) > int(time.time())
+        )
+    except (ValueError, UnicodeDecodeError):
+        return False
 
 
 def clean_topic(value):
@@ -689,26 +722,40 @@ class AppHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"[{self.log_date_time_string()}] {fmt % args}")
 
-    def authenticated(self):
+    def cookie_value(self, name):
+        cookie_header = self.headers.get("Cookie", "")
+        for part in cookie_header.split(";"):
+            key, separator, value = part.strip().partition("=")
+            if separator and key == name:
+                return value
+        return ""
+
+    def secure_cookie_suffix(self):
+        forwarded_proto = self.headers.get("X-Forwarded-Proto", "").lower()
+        return "; Secure" if forwarded_proto == "https" or os.getenv("VERCEL") else ""
+
+    def authenticated(self, respond=True):
         password = os.getenv("APP_PASSWORD", "")
         if not password:
+            return True
+        if valid_session_token(self.cookie_value(SESSION_COOKIE_NAME)):
             return True
         username = os.getenv("APP_USERNAME", "upli")
         expected = "Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
         received = self.headers.get("Authorization", "")
         if hmac.compare_digest(received, expected):
             return True
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="Darwin Caption Lab", charset="UTF-8"')
-        self.send_header("Content-Length", "0")
-        self.end_headers()
+        if respond:
+            self.send_json(401, {"error": "Faça login para continuar."})
         return False
 
-    def send_json(self, status, payload):
+    def send_json(self, status, payload, headers=None):
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(data)
 
@@ -733,8 +780,12 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         self.normalize_route()
-        if self.path != "/api/health" and not self.authenticated():
-            return
+        if self.path == "/api/session":
+            return self.send_json(200, {
+                "authenticated": self.authenticated(respond=False),
+                "username": os.getenv("APP_USERNAME", "upli"),
+                "appleLoginUrl": os.getenv("APPLE_LOGIN_URL", "").strip()
+            })
         if self.path == "/api/health":
             config = ai_config()
             return self.send_json(200, {
@@ -749,6 +800,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                 "instagramProvider": "Apify" if apify_token() else "Meta" if instagram_token("Colatina") or instagram_token("Linhares") else None
                 ,"storage": "Supabase" if postgres_url() else "arquivo local"
             })
+        if self.path.startswith("/api/") and not self.authenticated():
+            return
         if self.path == "/api/state":
             try:
                 return self.send_json(200, read_state())
@@ -763,6 +816,33 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         self.normalize_route()
+        if self.path == "/api/login":
+            try:
+                body = self.read_json()
+            except (ValueError, json.JSONDecodeError):
+                return self.send_json(400, {"error": "Preencha usuário e senha."})
+            expected_username = os.getenv("APP_USERNAME", "upli")
+            expected_password = os.getenv("APP_PASSWORD", "")
+            supplied_username = str(body.get("username", ""))
+            supplied_password = str(body.get("password", ""))
+            remember = body.get("remember") is True
+            valid = (
+                bool(expected_password)
+                and hmac.compare_digest(supplied_username, expected_username)
+                and hmac.compare_digest(supplied_password, expected_password)
+            )
+            if not valid:
+                return self.send_json(401, {"error": "Usuário ou senha incorretos."})
+            max_age = SESSION_MAX_AGE if remember else SESSION_BROWSER_AGE
+            persistence = f" Max-Age={max_age};" if remember else ""
+            cookie = (
+                f"{SESSION_COOKIE_NAME}={create_session_token(expected_username, max_age)}; "
+                f"Path=/;{persistence} HttpOnly; SameSite=Lax{self.secure_cookie_suffix()}"
+            )
+            return self.send_json(200, {"ok": True, "username": expected_username}, {"Set-Cookie": cookie})
+        if self.path == "/api/logout":
+            cookie = f"{SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax{self.secure_cookie_suffix()}"
+            return self.send_json(200, {"ok": True}, {"Set-Cookie": cookie})
         if not self.authenticated():
             return
         try:
